@@ -2,7 +2,7 @@ import torch
 from dataset import test_dataset
 
 if __name__ == '__main__':
-    checkpoint = torch.load(r'.\out\checkpoint.pth.tar')
+    checkpoint = torch.load(r'.\out\checkpoint.pth')
 
     hub_repo = checkpoint['hub_repo']
     arch = checkpoint['arch']

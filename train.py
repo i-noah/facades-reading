@@ -6,7 +6,7 @@ import torch.optim
 from torch.optim.lr_scheduler import StepLR
 import torch.utils.data
 import torch.utils.data.distributed
-from dataset import train_loader, valid_loader
+from dataset import train_loader, validation_loader
 
 hub_repo = 'pytorch/vision:v0.10.0'
 arch = 'resnext101_32x8d'
@@ -65,7 +65,7 @@ if __name__ == '__main__':
         model.eval()
 
         with torch.no_grad():
-            for i, (images, target) in enumerate(valid_loader):
+            for i, (images, target) in enumerate(validation_loader):
                 if torch.cuda.is_available():
                     images = images.cuda(non_blocking=True)
                     target = target.cuda(non_blocking=True)
@@ -74,11 +74,11 @@ if __name__ == '__main__':
                 loss = criterion(output, target)
 
                 if i % print_freq == 0:
-                    print("[Test  Epoch {}] ({}/{}) Loss {}".format(epoch, i, len(valid_loader), loss.item()))
+                    print("[Test  Epoch {}] ({}/{}) Loss {}".format(epoch, i, len(validation_loader), loss.item()))
         
         scheduler.step()
 
-        filename = os.path.join(out_dir, "checkpoint.pth.tar")
+        filename = os.path.join(out_dir, "checkpoint.pth")
         torch.save({
             'epoch': epoch + 1,
             'arch': arch,
