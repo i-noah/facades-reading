@@ -1,28 +1,19 @@
 # -*- coding:utf-8 -*-
 import torch
-import os
-from torchvision import transforms
+from torchvision import transforms as T
 from torchvision.datasets import ImageFolder
 from torch.utils.data import random_split
-
-data_dir = r'E:\dev\facade-reading-data\facade-reading-data'
-train_dir = os.path.join(data_dir, 'train')
-
-train_split, validation_split, test_split = 0.6, 0.2, 0.2
-
-batch_size = 8
-data_loading_workers = 2
-random_seed = 128
+from config import (image_size, train_dir, train_split, batch_size, 
+                    random_seed, validation_split, data_loading_workers)
 
 mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-image_size = 224
 image_resize = int(image_size * (256 / 224)), int(image_size * (256 / 224))
 
-image_transform = transforms.Compose([
-    transforms.Resize(image_resize),
-    transforms.CenterCrop(image_size),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=mean, std=std),
+image_transform = T.Compose([
+    T.Resize(image_resize),
+    T.CenterCrop(image_size),
+    T.ToTensor(),
+    T.Normalize(mean=mean, std=std),
 ])
 
 dataset = ImageFolder(root=train_dir, transform=image_transform)
@@ -43,5 +34,10 @@ validation_loader = torch.utils.data.DataLoader(
     num_workers=data_loading_workers, pin_memory=True,
 )
 
+classes_cnt = len(dataset.classes)
+
 if __name__ == '__main__':
+    print(train_dataset.indices)
+    print(validation_dataset.indices)
+    print(test_dataset.indices)
     print(len(train_dataset), len(validation_dataset), len(test_dataset))

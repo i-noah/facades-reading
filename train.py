@@ -1,87 +1,80 @@
 import os
 import torch
 import torch.nn as nn
-import torch.nn.parallel
 import torch.optim
 from torch.optim.lr_scheduler import StepLR
-import torch.utils.data
-import torch.utils.data.distributed
-from dataset import train_loader, validation_loader
-
-hub_repo = 'pytorch/vision:v0.10.0'
-arch = 'resnext101_32x8d'
-out_dir = './out'
-momentum = 0.9
-initial_learning_rate = 5e-5
-weight_decay = 1e-3
-start_epoch = 0
-epochs = 10
-print_freq = 10
+from dataset import train_loader, validation_loader, classes_cnt
+from config import (epochs, out_dir, hub_repo, model_arch, momentum, batch_size,
+                    print_freq, start_epoch, weight_decay, initial_learning_rate)
 
 if __name__ == '__main__':
     os.makedirs(out_dir, exist_ok=True)
-
-    model = torch.hub.load(hub_repo, arch, pretrained=True)
     
-    model.fc = nn.Linear(model.fc.in_features, 2)
-    nn.init.xavier_uniform_(model.fc.weight)
+    nn.benchmark = True
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    if torch.cuda.is_available():
-        model.cuda()
+    model = torch.hub.load(hub_repo, model_arch, pretrained=True)
+    model.fc = nn.Linear(model.fc.in_features, classes_cnt)
+    nn.init.xavier_uniform_(model.fc.weight)
+    model = model.to(device)
 
     params = [param for name, param in model.named_parameters() 
                 if name not in ["fc.weight", "fc.bias"]]
 
-    # define loss function (criterion), optimizer, and learning rate scheduler  
     optimizer = torch.optim.SGD([{'params': params,}, {'params': model.fc.parameters(), 'lr': initial_learning_rate * 10}], 
                                 lr=initial_learning_rate, momentum=momentum, weight_decay=weight_decay)
 
     criterion = nn.CrossEntropyLoss().cuda()
-
-    # Sets the learning rate to the initial LR decayed by 10 every 30 epoch
     scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
 
     for epoch in range(start_epoch, epochs):
-        # switch to train mode and train for one epoch
-        model.train()
-        for i, (images, target) in enumerate(train_loader):
-            if torch.cuda.is_available():
-                images = images.cuda(non_blocking=True)
-                target = target.cuda(non_blocking=True)
+        print("--------------------------TRAINING--------------------------------")
+        model.train()       
 
-            # compute output
+        for i, (images, target) in enumerate(train_loader):
+            images = images.to(device)
+            target = target.to(device)
+
             output = model(images)
             loss = criterion(output, target)
 
-            if i % print_freq == 0:
-                print("[Train Epoch {}] ({}/{}) Loss {}".format(epoch, i, len(train_loader), loss.item()))
+            prediction = torch.max(output, 1)[1]
+            train_correct = (prediction == target).sum()
+            train_acc = (train_correct.float()) / batch_size
 
-            # compute gradient and do SGD step
+            if i % print_freq == 0:
+                print("[Epoch {:02d}] ({:03d}/{:03d}) | Loss: {:.18f} | ACC: {:.2f} %".format(epoch, i, len(train_loader), loss.item(), train_acc * 100))
+            
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-        # switch to evaluate mode and evaluate on validation set
+        print("--------------------------VALIDATION-----------------------------")
         model.eval()
 
         with torch.no_grad():
             for i, (images, target) in enumerate(validation_loader):
-                if torch.cuda.is_available():
-                    images = images.cuda(non_blocking=True)
-                    target = target.cuda(non_blocking=True)
-
+                images = images.to(device)
+                target = target.to(device)
                 output = model(images)
                 loss = criterion(output, target)
 
+                prediction = torch.max(output, 1)[1]
+                val_correct = (prediction == target).sum()
+                val_acc = (val_correct.float()) / batch_size
+                
                 if i % print_freq == 0:
-                    print("[Test  Epoch {}] ({}/{}) Loss {}".format(epoch, i, len(validation_loader), loss.item()))
-        
+                    print("[Epoch {:02d}] ({:03d}/{:03d}) | Loss: {:.18f} | ACC: {:.2f} %".format(epoch, i, len(validation_loader), loss.item(), val_acc * 100))
+
         scheduler.step()
 
         filename = os.path.join(out_dir, "checkpoint.pth")
-        torch.save({
+        state = {
             'epoch': epoch + 1,
-            'arch': arch,
+            'arch': model_arch,
             'hub_repo': hub_repo,
-            'state_dict': model.state_dict()
-        }, filename)
+            'state_dict': model.state_dict(),
+            'classes_cnt': classes_cnt
+        }
+
+        torch.save(state, filename)
