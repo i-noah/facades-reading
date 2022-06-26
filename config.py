@@ -17,5 +17,5 @@ momentum = 0.9
 initial_learning_rate = 5e-5
 weight_decay = 1e-3
 start_epoch = 0
-epochs = 20
-print_freq = 20
+epochs = 30
+print_freq = 10

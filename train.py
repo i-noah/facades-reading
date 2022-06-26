@@ -8,9 +8,7 @@ from config import (epochs, out_dir, hub_repo, model_arch, momentum, batch_size,
                     print_freq, start_epoch, weight_decay, initial_learning_rate)
 
 if __name__ == '__main__':
-    os.makedirs(out_dir, exist_ok=True)
-    
-    nn.benchmark = True
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = torch.hub.load(hub_repo, model_arch, pretrained=True)
@@ -31,19 +29,19 @@ if __name__ == '__main__':
         print("--------------------------TRAINING--------------------------------")
         model.train()       
 
-        for i, (images, target) in enumerate(train_loader):
+        for i, (images, targets) in enumerate(train_loader):
             images = images.to(device)
-            target = target.to(device)
+            targets = targets.to(device)
 
             output = model(images)
-            loss = criterion(output, target)
+            loss = criterion(output, targets)
 
-            prediction = torch.max(output, 1)[1]
-            train_correct = (prediction == target).sum()
-            train_acc = (train_correct.float()) / batch_size
+            prediction = torch.argmax(output, dim=1)
+            train_correct = (prediction == targets).sum()
+            train_acc = (train_correct.float()) / images.shape[0]
 
             if i % print_freq == 0:
-                print("[Epoch {:02d}] ({:03d}/{:03d}) | Loss: {:.18f} | ACC: {:.2f} %".format(epoch, i, len(train_loader), loss.item(), train_acc * 100))
+                print("[Epoch {:02d}] ({:03d}/{:03d}) | Loss: {:.18f} | ACC: {:.2f} %".format(epoch, i + 1, len(train_loader), loss.item(), train_acc * 100))
             
             optimizer.zero_grad()
             loss.backward()
@@ -53,21 +51,22 @@ if __name__ == '__main__':
         model.eval()
 
         with torch.no_grad():
-            for i, (images, target) in enumerate(validation_loader):
+            for i, (images, targets) in enumerate(validation_loader):
                 images = images.to(device)
-                target = target.to(device)
+                targets = targets.to(device)
                 output = model(images)
-                loss = criterion(output, target)
+                loss = criterion(output, targets)
 
-                prediction = torch.max(output, 1)[1]
-                val_correct = (prediction == target).sum()
-                val_acc = (val_correct.float()) / batch_size
+                prediction = torch.argmax(output, dim=1)
+                val_correct = (prediction == targets).sum()
+                val_acc = (val_correct.float()) / images.shape[0]
                 
                 if i % print_freq == 0:
-                    print("[Epoch {:02d}] ({:03d}/{:03d}) | Loss: {:.18f} | ACC: {:.2f} %".format(epoch, i, len(validation_loader), loss.item(), val_acc * 100))
+                    print("[Epoch {:02d}] ({:03d}/{:03d}) | Loss: {:.18f} | ACC: {:.2f} %".format(epoch, i + 1, len(validation_loader), loss.item(), val_acc * 100))
 
         scheduler.step()
 
+        os.makedirs(out_dir, exist_ok=True)
         filename = os.path.join(out_dir, "checkpoint.pth")
         state = {
             'epoch': epoch + 1,
